@@ -1,3 +1,5 @@
+with GNAT.CGI;
+with http;
 package body http is
    procedure listen(self: in out HTTP_Server; port: String) is
       CR: constant Character := ada.characters.latin_1.CR;
@@ -22,18 +24,26 @@ package body http is
       listen_socket(self.socket);
 
       -- now accept an incoming connection
-      while True loop
+      while True loop begin
          accept_socket(self.socket, self.conn_socket, self.client_addr);
          put_line("Accepting connection from " & image(self.client_addr));
          -- ready to communicate on socket descriptor self.conn_socket
          receive_socket(self.conn_socket, data, last);
-         put_line("" & Character'Val(data(1)));
+         parse_request (data);
+         
          send_socket(self.conn_socket, resp, last);
          put_line(Long_Long_Integer'Image(Long_Long_Integer(last)) & " characters sent!");
          put_line("Closing connection to " & image(self.client_addr));
          close_socket(self.conn_socket);
+         exception
+         when Bad_Request => 
+            put_line("400: Bad Request");
+            -- TODO: Send 400 response
+            -- TODO: close socket
+            close_socket(self.conn_socket);
+         end;
       end loop;
-
+      
    end;
 
    function image(item: Address_Info) return String is
@@ -45,8 +55,123 @@ package body http is
       arr: Stream_Element_Array (1..str'length);
    begin
       for c in str'range loop
-         arr(Stream_Element_Offset(c)) := Stream_Element(Character'Pos(str(c)));
+         arr(Stream_Element_Offset(c)) := Stream_Element(Character'pos(str(c)));
       end loop;
       return arr;
+   end;
+
+   function to_string(arr: Stream_Element_Array) return String is
+      str: String(1..arr'length);
+   begin
+      for e in arr'range loop
+         --  put_line("e: " & Stream_Element_Offset'Image(e));
+         --  put_line("arr(e): " & Stream_Element'Image(arr(e)));
+         str(Integer(e-arr'first+1)) := Character'val(arr(e));
+      end loop;
+      return str;
+   end;
+
+   procedure parse_request(req: Stream_Element_Array) is
+      request: HTTP_Request;
+      last: Stream_Element_Offset := 1;
+   begin
+      -- parse request line
+      request.method := parse_request_method (req, last);
+      parse_character (req, last, SPACE);
+      request.uri := parse_request_uri(req, last);
+      parse_character (req, last, SPACE);
+      request.version := parse_http_version(req, last);
+      parse_character (req, last, CR);
+      parse_character (req, last, LF);
+
+      put_line(image(request));
+
+      exception
+         when Unsafe_Character =>
+            put_line("Unsafe Character");
+            raise Bad_Request;
+         when Bad_Method =>
+            put_line("Bad Method");
+            raise Bad_Request;
+      
+      --  return request;
+   end;
+
+   function parse_request_method(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Request_Method is
+   begin
+      while last <= req'length and then req(last) /= SPACE loop
+         if not is_ascii (req(last)) then
+            raise Unsafe_Character;
+         end if;
+         last := last + 1;
+      end loop;
+      return Request_Method'Value(to_string(req(1..last-1)));
+         exception
+            when Constraint_Error => 
+               --  put_line(to_string(req(1..last-1)));
+               raise Bad_Method;
+   end;
+
+   function parse_request_uri(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Ada.Strings.Unbounded.Unbounded_String is
+      use Ada.Strings.Unbounded;
+      start_uri: Stream_Element_Offset := last;
+   begin
+      while last <= req'length and then req(last) /= SPACE loop
+         if not is_ascii (req(last)) then
+            raise Unsafe_Character;
+         end if;
+         last := last + 1;
+      end loop;
+      if last > req'length then
+         raise Bad_Request;
+      end if;
+      return to_unbounded_string(to_string (req(start_uri..last-1)));
+   end;
+
+   function parse_http_version(req: Stream_Element_Array; last: in out Stream_Element_Offset) return HTTP_Version is
+   begin
+      -- check character requirement for HTTP/#.#
+      if req'length < last + 7 then
+         raise Bad_Request;
+      end if;
+      if not (req(last) = Character'pos('H') and
+         req(last+1) = Character'pos('T') and
+         req(last+2) = Character'pos('T') and
+         req(last+3) = Character'pos('P') and
+         req(last+4) = Character'pos('/') and
+         req(last+5) = Character'pos('1') and
+         req(last+6) = Character'pos('.')) then
+            raise Bad_Request;
+      end if;
+      if req(last+7) = Character'pos('0') then last := last + 8; return HTTP_1_0;
+      elsif req(last+7) = Character'pos('1') then last := last + 8; return HTTP_1_1;
+      else raise Bad_Request; 
+      end if;
+   end;
+
+   procedure parse_character(req: Stream_Element_Array; last: in out Stream_Element_Offset; ch: Stream_Element) is
+   begin
+      if req(last) = ch then
+         last := last + 1;
+      else
+         raise Bad_Request;
+      end if;
+   end;
+
+   function is_ascii(e: Stream_Element) return Boolean is
+   begin
+      return e >= 16#00# or e <= 16#7f#;
+   end;
+
+   function image(req: HTTP_Request) return String is
+      use Ada.Strings.Unbounded;
+      LF : constant Character := Ada.Characters.Latin_1.LF;
+      TAB : constant String := "  ";
+   begin
+      return "{" & LF & 
+               TAB & "method: " & Request_Method'image(req.method) & "," & LF &
+               TAB & "uri: " & to_string(req.uri) & "," & LF &
+               TAB & "version: " & HTTP_Version'image(req.version) & "," & LF &
+             "}";
    end;
 end http;
