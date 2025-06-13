@@ -8,6 +8,7 @@ package body http is
       res: Address_Info_Array := get_address_info(host => "", service => PORT, passive => true);
       data: Stream_Element_Array(1..1024);
       last: Stream_Element_Offset;
+      req: HTTP_Request;
       
       --  reuse_option: Option_Type(Reuse_Address) := (name => Reuse_Address, enabled => true);
    
@@ -29,7 +30,7 @@ package body http is
          put_line("Accepting connection from " & image(self.client_addr));
          -- ready to communicate on socket descriptor self.conn_socket
          receive_socket(self.conn_socket, data, last);
-         parse_request (data);
+         req := parse_request (data);
          
          send_socket(self.conn_socket, resp, last);
          put_line(Long_Long_Integer'Image(Long_Long_Integer(last)) & " characters sent!");
@@ -71,7 +72,7 @@ package body http is
       return str;
    end;
 
-   procedure parse_request(req: Stream_Element_Array) is
+   function parse_request(req: Stream_Element_Array) return HTTP_Request is
       request: HTTP_Request;
       last: Stream_Element_Offset := 1;
    begin
@@ -83,8 +84,18 @@ package body http is
       request.version := parse_http_version(req, last);
       parse_character (req, last, CR);
       parse_character (req, last, LF);
+      -- if CRLF does not follow request line then there must be request headers
+      --  if req(last) /= CR then
+      --     request.headers := parse_request_headers (req, last);
+      --  end if;
+      --  -- parse empty line that is between headers and body/content
+      --  parse_character (req, last, CR);
+      --  parse_character (req, last, LF);
+      -- parse body
 
       put_line(image(request));
+
+      return request;
 
       exception
          when Unsafe_Character =>
@@ -98,13 +109,19 @@ package body http is
    end;
 
    function parse_request_method(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Request_Method is
+      use Ada.Strings.Maps;
+      prev_last: Stream_Element_Offset := last;
    begin
       while last <= req'length and then req(last) /= SPACE loop
-         if not is_ascii (req(last)) then
+         if not is_in(Character'val(req(last)), TOKEN_CHAR) then
             raise Unsafe_Character;
          end if;
          last := last + 1;
       end loop;
+      -- Method must be at least one TOKEN_CHAR
+      if last - prev_last < 1 then
+         raise Bad_Method;
+      end if;
       return Request_Method'Value(to_string(req(1..last-1)));
          exception
             when Constraint_Error => 
@@ -117,7 +134,7 @@ package body http is
       start_uri: Stream_Element_Offset := last;
    begin
       while last <= req'length and then req(last) /= SPACE loop
-         if not is_ascii (req(last)) then
+         if not is_valid_char (req(last)) then
             raise Unsafe_Character;
          end if;
          last := last + 1;
@@ -149,6 +166,20 @@ package body http is
       end if;
    end;
 
+   
+
+   function parse_request_headers(req: Stream_Element_Array; last: in out Stream_Element_Offset) return String_Hashed_Maps.Map is
+      headers: String_Hashed_Maps.Map;
+   begin
+      -- parse field name
+      -- parse colon
+      -- parse OWS
+      -- parse field-value
+      -- parse OWS
+      -- parse CRLF
+      return headers;
+   end;
+
    procedure parse_character(req: Stream_Element_Array; last: in out Stream_Element_Offset; ch: Stream_Element) is
    begin
       if req(last) = ch then
@@ -158,9 +189,10 @@ package body http is
       end if;
    end;
 
-   function is_ascii(e: Stream_Element) return Boolean is
+   function is_valid_char(e: Stream_Element) return Boolean is
+      use Ada.Strings.Maps;
    begin
-      return e >= 16#00# or e <= 16#7f#;
+      return Is_In (Character'Val(e), CHAR);
    end;
 
    function image(req: HTTP_Request) return String is

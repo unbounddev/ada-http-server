@@ -1,6 +1,7 @@
 with ada.characters;
 with ada.characters.latin_1;
 with ada.streams; use ada.streams;
+with Ada.Strings.Maps;
 with Ada.Strings.Unbounded;
 with Ada.Containers.Indefinite_Hashed_Maps;
 with Ada.Strings.Hash;
@@ -55,6 +56,17 @@ package http is
       --  HTTP_3
    );
 
+   function "or" (Left, Right: Ada.Strings.Maps.Character_Set) return Ada.Strings.Maps.Character_Set renames Ada.Strings.Maps."or";
+   CHAR_CHARACTER_RANGE: constant Ada.Strings.Maps.Character_Range := (Low => Character'Val(16#01#), High => Character'Val(16#7f#));
+   DIGIT_CHAR_RANGE: constant Ada.Strings.Maps.Character_Range := (Low => '0', High => '9');
+   LOWER_ALPHA_CHAR_RANGE: constant Ada.Strings.Maps.Character_Range := (Low => 'a', High => 'z');
+   UPPER_ALPHA_CHAR_RANGE: constant Ada.Strings.Maps.Character_Range := (Low => 'A', High => 'Z');
+   ALPHA_CHAR_RANGES: constant Ada.Strings.Maps.Character_Ranges := (LOWER_ALPHA_CHAR_RANGE, UPPER_ALPHA_CHAR_RANGE);
+   CHAR: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set (CHAR_CHARACTER_RANGE);
+   DIGIT: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set (DIGIT_CHAR_RANGE);
+   ALPHA: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set (ALPHA_CHAR_RANGES);
+   TOKEN_CHAR: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set ("!#$%&'*+-.^_`|~") or DIGIT or ALPHA;
+
    type HTTP_Request is tagged record
       method: Request_Method;
       uri: Ada.Strings.Unbounded.Unbounded_String;
@@ -62,13 +74,13 @@ package http is
       headers: String_Hashed_Maps.Map;
    end record;
 
-   procedure parse_request(req: Stream_Element_Array);
+   function parse_request(req: Stream_Element_Array) return HTTP_Request;
    function parse_request_method(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Request_Method;
    function parse_request_uri(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Ada.Strings.Unbounded.Unbounded_String;
    function parse_http_version(req: Stream_Element_Array; last: in out Stream_Element_Offset) return HTTP_Version;
-   --  function parse_request_headers(req: Stream_Element_Array; last: in out Stream_Element_Offset) return String_Hashed_Maps.Map;
+   function parse_request_headers(req: Stream_Element_Array; last: in out Stream_Element_Offset) return String_Hashed_Maps.Map;
    procedure parse_character(req: Stream_Element_Array; last: in out Stream_Element_Offset; ch: Stream_Element);
-   function is_ascii(e: Stream_Element) return Boolean;
+   function is_valid_char(e: Stream_Element) return Boolean;
    function to_stream_element_array(str: String) return Stream_Element_Array;
    function image(item: Address_Info) return String;
    function image(req: HTTP_Request) return String;
