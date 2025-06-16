@@ -133,6 +133,13 @@ package body http is
       use Ada.Strings.Unbounded;
       start_uri: Stream_Element_Offset := last;
    begin
+      -- TODO: parse origin form (RFC 9112 3.2.1) = absolute-path [ "?" query ]
+      -- TODO: absolute-path = 1*( "/" segment )
+      -- TODO: segment = *pchar
+      -- TODO: pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
+      -- TODO: unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
+      -- TODO: pct-encoded   = "%" HEXDIG HEXDIG
+      -- TODO: sub-delims    = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
       while last <= req'length and then req(last) /= SPACE loop
          if not is_valid_char (req(last)) then
             raise Unsafe_Character;
