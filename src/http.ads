@@ -1,5 +1,7 @@
 with ada.characters;
 with ada.characters.latin_1;
+with Ada.Containers.Vectors;
+with Ada.Containers.Indefinite_Vectors;
 with ada.streams; use ada.streams;
 with Ada.Strings.Maps;
 with Ada.Strings.Unbounded;
@@ -24,6 +26,8 @@ package http is
         Element_Type    => String,
         Hash            => Ada.Strings.Hash,
         Equivalent_Keys => "=");
+   
+   package Unbounded_String_Vector is new Ada.Containers.Indefinite_Vectors(Natural, Ada.Strings.Unbounded.Unbounded_String, Ada.Strings.Unbounded."=");
 
    procedure listen(self: in out HTTP_Server; port: String);
 
@@ -67,16 +71,22 @@ package http is
    ALPHA: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set (ALPHA_CHAR_RANGES);
    TOKEN_CHAR: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set ("!#$%&'*+-.^_`|~") or DIGIT or ALPHA;
 
-   type HTTP_Request is tagged record
+   type Request_URI is record
+      path: Unbounded_String_Vector.Vector;
+      query: String_Hashed_Maps.Map;
+   end record;
+
+   type HTTP_Request is record
       method: Request_Method;
-      uri: Ada.Strings.Unbounded.Unbounded_String;
+      uri: Request_URI;
       version: HTTP_Version;
       headers: String_Hashed_Maps.Map;
    end record;
 
+
    function parse_request(req: Stream_Element_Array) return HTTP_Request;
    function parse_request_method(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Request_Method;
-   function parse_request_uri(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Ada.Strings.Unbounded.Unbounded_String;
+   function parse_request_uri(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Request_URI;
    function parse_http_version(req: Stream_Element_Array; last: in out Stream_Element_Offset) return HTTP_Version;
    function parse_request_headers(req: Stream_Element_Array; last: in out Stream_Element_Offset) return String_Hashed_Maps.Map;
    procedure parse_character(req: Stream_Element_Array; last: in out Stream_Element_Offset; ch: Stream_Element);

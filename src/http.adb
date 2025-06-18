@@ -129,27 +129,45 @@ package body http is
                raise Bad_Method;
    end;
 
-   function parse_request_uri(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Ada.Strings.Unbounded.Unbounded_String is
+   function parse_request_uri(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Request_URI is
       use Ada.Strings.Unbounded;
       start_uri: Stream_Element_Offset := last;
+      segment_start: Stream_Element_Offset := last;
+      uri: Request_URI;
+      is_query: Boolean := false;
    begin
       -- TODO: parse origin form (RFC 9112 3.2.1) = absolute-path [ "?" query ]
+      -- TODO: query (RFC 3986 3.4) = *( pchar / "/" / "?" )
       -- TODO: absolute-path = 1*( "/" segment )
       -- TODO: segment = *pchar
       -- TODO: pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
       -- TODO: unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
       -- TODO: pct-encoded   = "%" HEXDIG HEXDIG
       -- TODO: sub-delims    = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+      if last <= req'length and then req(last) /= Character'Pos('/') then
+         raise Bad_Request;
+      end if;
       while last <= req'length and then req(last) /= SPACE loop
          if not is_valid_char (req(last)) then
             raise Unsafe_Character;
          end if;
+         if req(last) = Character'Pos('/') and not is_query then
+            if segment_start /= start_uri then
+               uri.path.append(to_unbounded_string(to_string(req(segment_start..last-1))));
+            end if;
+            segment_start := last + 1;
+         end if;
+         if req(last) = Character'Pos('?') and not is_query then
+            is_query := true;
+         end if;
+         -- TODO: Handle query
          last := last + 1;
       end loop;
+      -- TODO: Capture remaining path segment or query pair
       if last > req'length then
          raise Bad_Request;
       end if;
-      return to_unbounded_string(to_string (req(start_uri..last-1)));
+      return uri;
    end;
 
    function parse_http_version(req: Stream_Element_Array; last: in out Stream_Element_Offset) return HTTP_Version is
@@ -209,7 +227,7 @@ package body http is
    begin
       return "{" & LF & 
                TAB & "method: " & Request_Method'image(req.method) & "," & LF &
-               TAB & "uri: " & to_string(req.uri) & "," & LF &
+               --  TAB & "uri: " & to_string(req.uri) & "," & LF &
                TAB & "version: " & HTTP_Version'image(req.version) & "," & LF &
              "}";
    end;
