@@ -143,24 +143,48 @@ package body http is
       -- unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
       -- pct-encoded   = "%" HEXDIG HEXDIG
       -- sub-delims    = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+      --  Put_Line (Stream_Element'Image(req(last)) & " " & Character'Val(req(last)));
       if last <= req'length and then req(last) /= Character'Pos('/') then
          raise Bad_Request;
       end if;
       while last <= req'length and then req(last) /= SPACE loop
          -- TODO: if '%' make sure that it is followed by two HEXDIG
-         if req(last) = Character'Pos('/') and not is_query then
-            if segment_start /= start_uri then
-               uri.path.append(to_unbounded_string(to_string(req(segment_start..last-1))));
+         --  Put_Line (Character'Val(req(last)) & "");
+         if not is_query then -- parse path
+            if req(last) = Character'Pos('/') then
+               if segment_start /= start_uri then
+                  uri.path.append(to_unbounded_string(to_string(req(segment_start..last-1))));
+               end if;
+               segment_start := last + 1;
+            elsif req(last) = Character'Pos('?') then
+               is_query := true;
+               if last > segment_start then
+                  uri.path.append(To_Unbounded_String(to_string(req(segment_start..last-1))));
+               end if;
+            elsif req(last) = Character'Pos('%') then
+               if not (req'Length > last + 2 and then Is_In (Character'Val(req(last+1)), HEXDIG) and then Is_In (Character'Val(req(last+2)), HEXDIG)) then
+                  raise Bad_Request;
+               end if;
+               last := last + 2;
+            else
+               if not Is_In (Character'Val(req(last)), PCHAR) then
+                  raise Bad_Request;
+               end if;
             end if;
-            segment_start := last + 1;
+         else -- TODO: parse query
+            null;
          end if;
-         if req(last) = Character'Pos('?') and not is_query then
-            is_query := true;
-         end if;
-         -- TODO: Handle query
          last := last + 1;
       end loop;
       -- TODO: Capture remaining path segment or query pair
+      if not is_query then
+         if last > segment_start then
+            uri.path.append(To_Unbounded_String(to_string(req(segment_start..last-1))));
+         end if;
+      else
+         -- TODO: handle capturing last part of query
+         null;
+      end if;
       if last > req'length then
          raise Bad_Request;
       end if;
@@ -218,12 +242,28 @@ package body http is
 
    function image(req: HTTP_Request) return String is
       use Ada.Strings.Unbounded;
+      use Ada.Containers;
       LF : constant Character := Ada.Characters.Latin_1.LF;
       TAB : constant String := "  ";
+      Root_URI : constant String := TAB & "uri: /," & LF;
+      Is_Root_Path: Boolean := false;
+      function uri_to_string return String is
+         URI_Str: Unbounded_String;
+      begin
+         if req.uri.path.Length = 0 then
+            return "/";
+         else 
+            for segment of req.uri.path loop
+               Append (URI_Str, To_Unbounded_String("/"));
+               Append (URI_Str, segment);
+            end loop;
+         end if;
+         return to_string(URI_Str);
+      end;
    begin
       return "{" & LF & 
                TAB & "method: " & Request_Method'image(req.method) & "," & LF &
-               --  TAB & "uri: " & to_string(req.uri) & "," & LF &
+               TAB & "uri: " & uri_to_string & "," & LF &
                TAB & "version: " & HTTP_Version'image(req.version) & "," & LF &
              "}";
    end;
