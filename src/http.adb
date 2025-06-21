@@ -109,7 +109,6 @@ package body http is
    end;
 
    function parse_request_method(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Request_Method is
-      use Ada.Strings.Maps;
       prev_last: Stream_Element_Offset := last;
    begin
       while last <= req'length and then req(last) /= SPACE loop
@@ -213,7 +212,6 @@ package body http is
    end;
 
    function is_valid_char(e: Stream_Element) return Boolean is
-      use Ada.Strings.Maps;
    begin
       return Is_In (Character'Val(e), CHAR);
    end;
