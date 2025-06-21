@@ -136,21 +136,19 @@ package body http is
       uri: Request_URI;
       is_query: Boolean := false;
    begin
-      -- TODO: parse origin form (RFC 9112 3.2.1) = absolute-path [ "?" query ]
-      -- TODO: query (RFC 3986 3.4) = *( pchar / "/" / "?" )
-      -- TODO: absolute-path = 1*( "/" segment )
-      -- TODO: segment = *pchar
-      -- TODO: pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
-      -- TODO: unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
-      -- TODO: pct-encoded   = "%" HEXDIG HEXDIG
-      -- TODO: sub-delims    = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+      -- parse origin form (RFC 9112 3.2.1) = absolute-path [ "?" query ]
+      -- query (RFC 3986 3.4) = *( pchar / "/" / "?" )
+      -- absolute-path = 1*( "/" segment )
+      -- segment = *pchar
+      -- pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
+      -- unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
+      -- pct-encoded   = "%" HEXDIG HEXDIG
+      -- sub-delims    = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
       if last <= req'length and then req(last) /= Character'Pos('/') then
          raise Bad_Request;
       end if;
       while last <= req'length and then req(last) /= SPACE loop
-         if not is_valid_char (req(last)) then
-            raise Unsafe_Character;
-         end if;
+         -- TODO: if '%' make sure that it is followed by two HEXDIG
          if req(last) = Character'Pos('/') and not is_query then
             if segment_start /= start_uri then
                uri.path.append(to_unbounded_string(to_string(req(segment_start..last-1))));

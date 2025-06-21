@@ -65,10 +65,18 @@ package http is
    DIGIT_CHAR_RANGE: constant Ada.Strings.Maps.Character_Range := (Low => '0', High => '9');
    LOWER_ALPHA_CHAR_RANGE: constant Ada.Strings.Maps.Character_Range := (Low => 'a', High => 'z');
    UPPER_ALPHA_CHAR_RANGE: constant Ada.Strings.Maps.Character_Range := (Low => 'A', High => 'Z');
+   ALPHA_HEX_CHAR_RANGE: constant Ada.Strings.Maps.Character_Range := (Low => 'A', High => 'F');
    ALPHA_CHAR_RANGES: constant Ada.Strings.Maps.Character_Ranges := (LOWER_ALPHA_CHAR_RANGE, UPPER_ALPHA_CHAR_RANGE);
    CHAR: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set (CHAR_CHARACTER_RANGE);
    DIGIT: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set (DIGIT_CHAR_RANGE);
    ALPHA: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set (ALPHA_CHAR_RANGES);
+   ALPHA_HEX_CHAR: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set (ALPHA_HEX_CHAR_RANGE);
+   UNRESERVED_CHAR: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set ("-._~") or ALPHA or DIGIT;
+   PCT_CHAR: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set ('%');
+   SUBDELIM_CHAR: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set ("!$&'()*+,;=");
+   HEXDIG: constant Ada.Strings.Maps.Character_Set := DIGIT or ALPHA_HEX_CHAR;
+   PCHAR: constant Ada.Strings.Maps.Character_Set := UNRESERVED_CHAR or PCT_CHAR or SUBDELIM_CHAR or Ada.Strings.Maps.To_Set (":@");
+   QUERY_CHAR: constant Ada.Strings.Maps.Character_Set := PCHAR or Ada.Strings.Maps.To_Set ("/?");
    TOKEN_CHAR: constant Ada.Strings.Maps.Character_Set := Ada.Strings.Maps.To_Set ("!#$%&'*+-.^_`|~") or DIGIT or ALPHA;
 
    type Request_URI is record
