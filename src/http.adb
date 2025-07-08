@@ -129,11 +129,12 @@ package body http is
    end;
 
    function parse_request_uri(req: Stream_Element_Array; last: in out Stream_Element_Offset) return Request_URI is
-      use Ada.Strings.Unbounded;
       start_uri: Stream_Element_Offset := last;
       segment_start: Stream_Element_Offset := last;
+      param_name: Unbounded_String;
       uri: Request_URI;
       is_query: Boolean := false;
+      is_param_value: Boolean := false;
    begin
       -- parse origin form (RFC 9112 3.2.1) = absolute-path [ "?" query ]
       -- query (RFC 3986 3.4) = *( pchar / "/" / "?" )
@@ -148,7 +149,6 @@ package body http is
          raise Bad_Request;
       end if;
       while last <= req'length and then req(last) /= SPACE loop
-         -- TODO: if '%' make sure that it is followed by two HEXDIG
          --  Put_Line (Character'Val(req(last)) & "");
          if not is_query then -- parse path
             if req(last) = Character'Pos('/') then
@@ -161,6 +161,7 @@ package body http is
                if last > segment_start then
                   uri.path.append(To_Unbounded_String(to_string(req(segment_start..last-1))));
                end if;
+               segment_start := last + 1;
             elsif req(last) = Character'Pos('%') then
                if not (req'Length > last + 2 and then Is_In (Character'Val(req(last+1)), HEXDIG) and then Is_In (Character'Val(req(last+2)), HEXDIG)) then
                   raise Bad_Request;
@@ -172,7 +173,20 @@ package body http is
                end if;
             end if;
          else -- TODO: parse query
-            null;
+            -- TODO: Refactor to account for the fact that param values are not required
+            if req(last) = Character'Pos('=') then -- param name end
+               param_name := To_Unbounded_String(To_String(req(segment_start..last-1)));
+               segment_start := last + 1;
+               is_param_value := true;
+            elsif req(last) = Character'Pos('&') then -- param value end
+               if not is_param_value then
+                  Uri.query.Insert (To_Unbounded_String(To_String(req(segment_start..last-1))), To_Unbounded_String(""));
+               else -- TODO: Check if value is empty after = (aka =&)
+                  Uri.query.Insert (param_name, To_Unbounded_String(To_String(req(segment_start..last-1))));
+               end if;
+               segment_start := last + 1;
+               is_param_value := false;
+            end if;
          end if;
          last := last + 1;
       end loop;
@@ -241,7 +255,6 @@ package body http is
    end;
 
    function image(req: HTTP_Request) return String is
-      use Ada.Strings.Unbounded;
       use Ada.Containers;
       LF : constant Character := Ada.Characters.Latin_1.LF;
       TAB : constant String := "  ";

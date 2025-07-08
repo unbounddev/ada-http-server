@@ -4,9 +4,9 @@ with Ada.Containers.Vectors;
 with Ada.Containers.Indefinite_Vectors;
 with ada.streams; use ada.streams;
 with Ada.Strings.Maps; use Ada.Strings.Maps;
-with Ada.Strings.Unbounded;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Containers.Indefinite_Hashed_Maps;
-with Ada.Strings.Hash;
+with Ada.Strings.Unbounded.Hash;
 with ada.text_io; use ada.text_io;
 with gnat.sockets; use gnat.sockets;
 with system;
@@ -22,12 +22,12 @@ package http is
 
    package String_Hashed_Maps is new
      Ada.Containers.Indefinite_Hashed_Maps
-       (Key_Type        => String,
-        Element_Type    => String,
-        Hash            => Ada.Strings.Hash,
+       (Key_Type        => Unbounded_String,
+        Element_Type    => Unbounded_String,
+        Hash            => Hash,
         Equivalent_Keys => "=");
    
-   package Unbounded_String_Vector is new Ada.Containers.Indefinite_Vectors(Natural, Ada.Strings.Unbounded.Unbounded_String, Ada.Strings.Unbounded."=");
+   package Unbounded_String_Vector is new Ada.Containers.Indefinite_Vectors(Natural, Unbounded_String, "=");
 
    procedure listen(self: in out HTTP_Server; port: String);
 
