@@ -273,8 +273,9 @@ package body http is
          Is_First: Boolean := true;
       begin
          Append (URI_Str, To_Unbounded_String("{" & LF & TAB & TAB & "path: "));
+         -- process path
          if req.uri.path.Length = 0 then
-            return "[]";
+            Append (URI_Str, To_Unbounded_String("[]"));
          else 
             Append (URI_Str, To_Unbounded_String("[ "));
             for segment of req.uri.path loop
@@ -287,15 +288,30 @@ package body http is
             end loop;
             Append (URI_Str, To_Unbounded_String(" ]"));
          end if;
-         -- TODO: convert query to string
-         Append (URI_Str, To_Unbounded_String("," & LF & TAB & TAB & "query: {}" & LF & TAB & "}"));
+         -- process query
+         Append (URI_Str, To_Unbounded_String("," & LF & TAB & TAB & "query: "));
+         if req.uri.query.Is_Empty then
+            Append (URI_Str, To_Unbounded_String("{}"));
+         else
+            Append (URI_Str, To_Unbounded_String("{" & LF));
+            for C in req.uri.query.Iterate loop
+               Append (URI_Str, To_Unbounded_String(TAB & TAB & TAB & """"));
+               Append (URI_Str, String_Hashed_Maps.Key(C));
+               Append (URI_Str, To_Unbounded_String(""": """));
+               Append (URI_Str, req.uri.query(C));
+               Append (URI_Str, To_Unbounded_String("""," & LF));
+               -- TODO: If at the last element ommit the trailing comma
+            end loop;
+            Append (URI_Str, To_Unbounded_String(TAB & TAB & "}"));
+         end if;
+         Append (URI_Str, To_Unbounded_String(LF & TAB & "}"));
          return to_string(URI_Str);
       end;
    begin
       return "{" & LF & 
                TAB & "method: " & Request_Method'image(req.method) & "," & LF &
                TAB & "uri: " & uri_to_string & "," & LF &
-               TAB & "version: " & HTTP_Version'image(req.version) & "," & LF &
+               TAB & "version: " & HTTP_Version'image(req.version) & LF &
              "}";
    end;
 end http;
