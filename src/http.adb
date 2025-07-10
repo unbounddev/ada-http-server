@@ -194,7 +194,7 @@ package body http is
       end loop;
       -- Capture remaining path segment or query pair
       if not is_query then
-         if last-1 > segment_start then
+         if last > segment_start then
             uri.path.append(To_Unbounded_String(to_string(req(segment_start..last-1))));
          end if;
       else -- handle capturing last part of query
@@ -270,15 +270,25 @@ package body http is
       Is_Root_Path: Boolean := false;
       function uri_to_string return String is
          URI_Str: Unbounded_String;
+         Is_First: Boolean := true;
       begin
+         Append (URI_Str, To_Unbounded_String("{" & LF & TAB & TAB & "path: "));
          if req.uri.path.Length = 0 then
-            return "/";
+            return "[]";
          else 
+            Append (URI_Str, To_Unbounded_String("[ "));
             for segment of req.uri.path loop
-               Append (URI_Str, To_Unbounded_String("/"));
-               Append (URI_Str, segment);
+               if Is_First then
+                  Append (URI_Str, """" & segment & """");
+                  Is_First := false;
+               else
+                  Append (URI_Str, ", """ & segment & """");
+               end if;
             end loop;
+            Append (URI_Str, To_Unbounded_String(" ]"));
          end if;
+         -- TODO: convert query to string
+         Append (URI_Str, To_Unbounded_String("," & LF & TAB & TAB & "query: {}" & LF & TAB & "}"));
          return to_string(URI_Str);
       end;
    begin
