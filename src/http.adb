@@ -152,7 +152,7 @@ package body http is
          --  Put_Line (Character'Val(req(last)) & "");
          if not is_query then -- parse path
             if req(last) = Character'Pos('/') then
-               if segment_start /= start_uri then
+               if segment_start /= start_uri then -- TODO: Check for empty segment
                   uri.path.append(to_unbounded_string(to_string(req(segment_start..last-1))));
                end if;
                segment_start := last + 1;
@@ -172,8 +172,7 @@ package body http is
                   raise Bad_Request;
                end if;
             end if;
-         else -- TODO: parse query
-            -- TODO: Refactor to account for the fact that param values are not required
+         else -- parse query
             if req(last) = Character'Pos('=') then -- param name end
                param_name := To_Unbounded_String(To_String(req(segment_start..last-1)));
                segment_start := last + 1;
@@ -181,23 +180,32 @@ package body http is
             elsif req(last) = Character'Pos('&') then -- param value end
                if not is_param_value then
                   Uri.query.Insert (To_Unbounded_String(To_String(req(segment_start..last-1))), To_Unbounded_String(""));
-               else -- TODO: Check if value is empty after = (aka =&)
+               elsif segment_start = last-1 then -- Check if value is empty after = (aka =&)
+                  Uri.query.Insert (param_name, To_Unbounded_String(""));
+               else
                   Uri.query.Insert (param_name, To_Unbounded_String(To_String(req(segment_start..last-1))));
                end if;
                segment_start := last + 1;
                is_param_value := false;
             end if;
+            -- TODO: handle #... part
          end if;
          last := last + 1;
       end loop;
-      -- TODO: Capture remaining path segment or query pair
+      -- Capture remaining path segment or query pair
       if not is_query then
-         if last > segment_start then
+         if last-1 > segment_start then
             uri.path.append(To_Unbounded_String(to_string(req(segment_start..last-1))));
          end if;
-      else
-         -- TODO: handle capturing last part of query
-         null;
+      else -- handle capturing last part of query
+         if not is_param_value and last-1 > segment_start then 
+            Uri.query.Insert (To_Unbounded_String(To_String(req(segment_start..last-1))), To_Unbounded_String(""));
+         elsif segment_start = last-1 then
+            Uri.query.Insert (param_name, To_Unbounded_String(""));
+         else
+            Uri.query.Insert (param_name, To_Unbounded_String(To_String(req(segment_start..last-1))));
+         end if;
+         -- TODO: handle #... part
       end if;
       if last > req'length then
          raise Bad_Request;
