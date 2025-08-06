@@ -2,16 +2,17 @@ with http;
 
 package body http is
    procedure listen (self : in out HTTP_Server; port : String) is
-      CR   : constant Character := ada.characters.latin_1.CR;
-      LF   : constant Character := ada.characters.latin_1.LF;
-      resp : Stream_Element_Array :=
+      CR     : constant Character := ada.characters.latin_1.CR;
+      LF     : constant Character := ada.characters.latin_1.LF;
+      resp   : Stream_Element_Array :=
         to_stream_element_array
           ("HTTP/1.1 200 OK" & CR & LF & CR & LF & "Request received!");
-      res  : Address_Info_Array :=
+      res    : Address_Info_Array :=
         get_address_info (host => "", service => PORT, passive => true);
-      data : Stream_Element_Array (1 .. MAX_TCP_DATA_LENGTH);
-      last : Stream_Element_Offset;
-      req  : HTTP_Request;
+      data   : Stream_Element_Array (1 .. 1024);
+      last   : Stream_Element_Offset;
+      req    : HTTP_Request;
+      status : Parse_Status := REQ_METHOD;
 
       --  reuse_option: Option_Type(Reuse_Address) := (name => Reuse_Address, enabled => true);
 
@@ -37,11 +38,12 @@ package body http is
             put_line ("Accepting connection from " & image (self.client_addr));
             -- ready to communicate on socket descriptor self.conn_socket
             receive_socket (self.conn_socket, data, last);
+            Put_Line ("Last: " & Stream_Element_Offset'Image (last));
             -- TODO: Keep track of where we left off processing headers
             -- TODO: Keep requesting data until we have reached end of headers
             -- TODO: Only request exact Content-Length (body) after headers received
             -- TODO: Consider what the limit should be for header section (general consensus is base limit of 8KB)
-            req := parse_request (data);
+            parse_request (data, req, status);
 
             send_socket
               (self.conn_socket,
@@ -55,6 +57,7 @@ package body http is
             close_socket (self.conn_socket);
          exception
             when Bad_Request =>
+               put_line (Parse_Status'Image (status));
                put_line ("400: Bad Request");
                -- TODO: Send 400 response
                -- TODO: close socket
@@ -97,30 +100,53 @@ package body http is
       return str;
    end;
 
-   function parse_request (req : Stream_Element_Array) return HTTP_Request is
-      request : HTTP_Request;
-      last    : Stream_Element_Offset := 1;
+   procedure Parse_Request
+     (data   : Stream_Element_Array;
+      req    : in out HTTP_Request;
+      status : in out Parse_Status)
+   is
+      last : Stream_Element_Offset := 1;
    begin
-      -- parse request line
-      request.method := parse_request_method (req, last);
-      parse_character (req, last, SPACE);
-      request.uri := parse_request_uri (req, last);
-      parse_character (req, last, SPACE);
-      request.version := parse_http_version (req, last);
-      parse_character (req, last, CR);
-      parse_character (req, last, LF);
-      -- if CRLF does not follow request line then there must be request headers
-      if req (last) /= CR then
-         request.headers := parse_request_headers (req, last);
-      end if;
-      -- parse empty line that is between headers and body/content
-      parse_character (req, last, CR);
-      parse_character (req, last, LF);
-      -- parse body
+      -- TODO: Refactor parsing functions so that we know where we last safely left off and so we know how much of a buffer to keep
+      while last <= data'Length loop
+         case status is
+            -- parse request line
 
-      put_line (image (request));
+            when REQ_METHOD =>
+               req.method := parse_request_method (data, last);
+               status := REQ_URI;
 
-      return request;
+            when REQ_URI =>
+               parse_character (data, last, SPACE);
+               req.uri := parse_request_uri (data, last);
+               status := REQ_VERSION;
+
+            when REQ_VERSION =>
+               parse_character (data, last, SPACE);
+               req.version := parse_http_version (data, last);
+               status := REQ_HEADERS;
+
+            when REQ_HEADERS =>
+               parse_character (data, last, CR);
+               parse_character (data, last, LF);
+               -- if CRLF does not follow request line then there must be request headers
+               if data (last) /= CR then
+                  req.headers := parse_request_headers (data, last);
+               end if;
+               status := REQ_BODY;
+
+            when REQ_BODY =>
+               -- parse empty line that is between headers and body/content
+               parse_character (data, last, CR);
+               parse_character (data, last, LF);
+               -- parse body
+               status := REQ_COMPLETE;
+
+            when others =>
+               null;
+         end case;
+      end loop;
+      put_line (image (req));
 
    exception
       when Unsafe_Character =>
@@ -149,7 +175,7 @@ package body http is
       if last - prev_last < 1 then
          raise Bad_Method;
       end if;
-      return Request_Method'Value (to_string (req (1 .. last - 1)));
+      return Request_Method'Value (to_string (req (prev_last .. last - 1)));
    exception
       when Constraint_Error =>
          --  put_line(to_string(req(1..last-1)));
@@ -352,10 +378,10 @@ package body http is
               (Field_Name,
                To_Unbounded_String
                  (To_String (Req (Value_Start .. Value_End))));
-            Put_Line
-              (To_String (Field_Name)
-               & ": "
-               & To_String (Headers (Headers.Find (Field_Name))));
+            --  Put_Line
+            --    (To_String (Field_Name)
+            --     & ": "
+            --     & To_String (Headers (Headers.Find (Field_Name))));
             --  Put_Line (Integer'Image (Req'Length));
             --  Put_Line (Stream_Element_Offset'Image (Last));
             -- parse CRLF

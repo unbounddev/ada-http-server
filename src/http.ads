@@ -126,7 +126,13 @@ package http is
       headers : String_Hashed_Maps.Map;
    end record;
 
-   function parse_request (req : Stream_Element_Array) return HTTP_Request;
+   type Parse_Status is
+     (REQ_METHOD, REQ_URI, REQ_VERSION, REQ_HEADERS, REQ_BODY, REQ_COMPLETE);
+
+   procedure Parse_Request
+     (data   : Stream_Element_Array;
+      req    : in out HTTP_Request;
+      status : in out Parse_Status);
    function parse_request_method
      (req : Stream_Element_Array; last : in out Stream_Element_Offset)
       return Request_Method;
