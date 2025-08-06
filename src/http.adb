@@ -1,4 +1,3 @@
-with GNAT.CGI;
 with http;
 
 package body http is
