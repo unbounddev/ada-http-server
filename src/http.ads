@@ -35,6 +35,7 @@ package http is
    Bad_Request      : exception;
    Unsafe_Character : exception;
    Bad_Method       : exception;
+   Buffer_Overflow  : exception;
 
    type ASCII is range 16#0# .. 16#7f#;
 
@@ -47,8 +48,7 @@ package http is
    LF    : constant Stream_Element :=
      Character'pos (ada.characters.latin_1.LF);
 
-   -- Ethernet standard MTU is 1500, MSS (Max Segment Size) = 1500 - 16 (IP Header) - 24 (TCP Header)
-   MAX_TCP_DATA_LENGTH : constant := 1460;
+   MAX_BUFFER : constant := 1024;
 
    type Request_Method is
      (GET, -- Transfer a current representation of the target resource. (Safe)
@@ -132,7 +132,8 @@ package http is
    procedure Parse_Request
      (data   : Stream_Element_Array;
       req    : in out HTTP_Request;
-      status : in out Parse_Status);
+      status : in out Parse_Status;
+      last   : in out Stream_Element_Offset);
    function parse_request_method
      (req : Stream_Element_Array; last : in out Stream_Element_Offset)
       return Request_Method;
@@ -151,6 +152,7 @@ package http is
       ch   : Stream_Element);
    function is_valid_char (e : Stream_Element) return Boolean;
    function to_stream_element_array (str : String) return Stream_Element_Array;
+   function to_string (arr : Stream_Element_Array) return String;
    function image (item : Address_Info) return String;
    function image (req : HTTP_Request) return String;
 end;
