@@ -59,6 +59,9 @@ package body http is
                   data (1 .. last - lastParse + 1) := data (lastParse .. last);
                   Put_Line
                     ("Last Parse: " & Stream_Element_Offset'Image (lastParse));
+                  if lastParse = 1 then
+                     raise Bad_Request;
+                  end if;
                exception
                   when Bad_Request =>
                      put_line ("Response: " & Parse_Status'Image (status));
@@ -131,6 +134,7 @@ package body http is
    is
       lastParse : Stream_Element_Offset := 1;
    begin
+      last := 1;
       -- TODO: Refactor parsing functions so that we know where we last safely left off and so we know how much of a buffer to keep
       while last <= data'Length loop
          case status is
@@ -161,6 +165,8 @@ package body http is
                begin
                   Put_Line ("Parsing URI...");
                   lastParse := last;
+                  Put_Line ("Parsing space...");
+                  Put_Line (Character'Image (Character'Val (data (last))));
                   parse_character (data, last, SPACE);
                   req.uri := parse_request_uri (data, last);
                   status := REQ_VERSION;
@@ -171,11 +177,17 @@ package body http is
                end;
 
             when REQ_VERSION =>
-               Put_Line ("Parsing VERSION...");
-               lastParse := last;
-               parse_character (data, last, SPACE);
-               req.version := parse_http_version (data, last);
-               status := REQ_HEADERS;
+               begin
+                  Put_Line ("Parsing VERSION...");
+                  lastParse := last;
+                  parse_character (data, last, SPACE);
+                  req.version := parse_http_version (data, last);
+                  status := REQ_HEADERS;
+               exception
+                  when Buffer_Overflow =>
+                     last := lastParse;
+                     return;
+               end;
 
             when REQ_HEADERS =>
                Put_Line ("Parsing HEADER...");
@@ -265,12 +277,15 @@ package body http is
       -- pct-encoded   = "%" HEXDIG HEXDIG
       -- sub-delims    = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
       --  Put_Line (Stream_Element'Image(req(last)) & " " & Character'Val(req(last)));
+      Put_Line ("Parsing Root...");
       if last > req'Length then
          raise Buffer_Overflow;
       end if;
+      Put_Line ("Parsing Root...");
       if req (last) /= Character'Pos ('/') then
          raise Bad_Request;
       end if;
+      Put_Line ("Found Root...");
       while last <= req'length and then req (last) /= SPACE loop
          --  Put_Line (Character'Val(req(last)) & "");
          if not is_query then
@@ -374,7 +389,7 @@ package body http is
    begin
       -- check character requirement for HTTP/#.#
       if req'length < last + 7 then
-         raise Bad_Request;
+         raise Buffer_Overflow;
       end if;
       if not (req (last) = Character'pos ('H')
               and req (last + 1) = Character'pos ('T')
