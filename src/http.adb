@@ -35,6 +35,11 @@ package body http is
       -- now accept an incoming connection
       while True loop
          begin
+            -- initialize parsing variables
+            last := 1;
+            lastParse := 1;
+            status := REQ_METHOD;
+            
             accept_socket (self.socket, self.conn_socket, self.client_addr);
             put_line ("Accepting connection from " & image (self.client_addr));
             -- ready to communicate on socket descriptor self.conn_socket
@@ -56,6 +61,9 @@ package body http is
                   -- TODO: Only request exact Content-Length (body) after headers received
                   -- TODO: Consider what the limit should be for header section (general consensus is base limit of 8KB)
                   parse_request (data, req, status, lastParse);
+                  if status = REQ_COMPLETE then
+                     exit;
+                  end if;
                   data (1 .. last - lastParse + 1) := data (lastParse .. last);
                   Put_Line
                     ("Last Parse: " & Stream_Element_Offset'Image (lastParse));
@@ -207,6 +215,8 @@ package body http is
                -- parse body
                status := REQ_COMPLETE;
 
+            when REQ_COMPLETE =>
+               exit;
             when others =>
                null;
          end case;
