@@ -1,7 +1,0 @@
-services:
-  dev:
-    build: .
-    ports:
-      - 3490:3490
-    volumes:
-      - ./:/src

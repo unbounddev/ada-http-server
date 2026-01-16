@@ -205,13 +205,21 @@ package body http is
                if data (last) /= CR then
                   req.headers := parse_request_headers (data, last);
                end if;
-               status := REQ_BODY;
-
-            when REQ_BODY =>
-               Put_Line ("Parsing BODY...");
+               
                -- parse empty line that is between headers and body/content
                parse_character (data, last, CR);
                parse_character (data, last, LF);
+               -- server will not read body for GET request
+               if req.method = GET then
+                  status := REQ_COMPLETE;
+               else
+                  status := REQ_BODY;
+               end if;
+               
+
+            when REQ_BODY =>
+               Put_Line ("Parsing BODY...");
+               
                -- parse body
                status := REQ_COMPLETE;
 
